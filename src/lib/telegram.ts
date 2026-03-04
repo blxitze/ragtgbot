@@ -8,6 +8,7 @@
 import "server-only";
 
 import { env } from "@/lib/env";
+import { splitTelegramMessage } from "./telegramSplit";
 
 interface SendMessageParams {
     chatId: number;
@@ -54,5 +55,20 @@ export async function sendTelegramMessage({
         throw new Error(
             `[telegram] Telegram API returned ok: false — ${data.description ?? "no description"}`
         );
+    }
+}
+
+/**
+ * Splits a long text into chunks and sends them sequentially to a Telegram chat.
+ * Adds a small delay between messages to avoid rate limits.
+ */
+export async function sendTelegramMessageChunks(
+    chatId: number,
+    text: string
+): Promise<void> {
+    const chunks = splitTelegramMessage(text);
+    for (const chunk of chunks) {
+        await sendTelegramMessage({ chatId, text: chunk });
+        await new Promise((resolve) => setTimeout(resolve, 200));
     }
 }

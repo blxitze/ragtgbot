@@ -13,6 +13,8 @@ const REQUIRED_VARS = [
     "TELEGRAM_SECRET",
     "OPENAI_API_KEY",
     "APP_URL",
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 
 type RequiredVar = (typeof REQUIRED_VARS)[number];
@@ -36,6 +38,8 @@ function buildEnv(): Env {
         TELEGRAM_SECRET: assertEnv("TELEGRAM_SECRET"),
         OPENAI_API_KEY: assertEnv("OPENAI_API_KEY"),
         APP_URL: assertEnv("APP_URL"),
+        SUPABASE_URL: assertEnv("SUPABASE_URL"),
+        SUPABASE_SERVICE_ROLE_KEY: assertEnv("SUPABASE_SERVICE_ROLE_KEY"),
     };
 }
 

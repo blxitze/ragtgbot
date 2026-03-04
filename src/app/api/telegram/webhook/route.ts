@@ -9,7 +9,10 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { sendTelegramMessage } from "@/lib/telegram";
+import { sendTelegramMessage, sendTelegramMessageChunks } from "@/lib/telegram";
+import { enqueueJob } from "@/lib/db/jobs";
+import { getResultByYoutubeId } from "@/lib/db/results";
+import { parseYouTubeId } from "@/lib/youtube";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,19 +63,60 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const text: string | undefined = update.message?.text;
     const hasText: boolean = typeof text === "string" && text.length > 0;
 
+    let youtubeId: string | null = null;
+    let enqueueStatus: string | null = null;
+
+    if (hasText && text) {
+        youtubeId = parseYouTubeId(text);
+    }
+    const hasYouTubeId = youtubeId !== null;
+
     // 4. Log ONLY allowed fields — no message content, no secrets.
-    console.log("[webhook]", { update_id: updateId, chat_id: chatId, hasText });
+    console.log("[webhook]", { update_id: updateId, chat_id: chatId, hasText, hasYouTubeId });
 
     // 5. Reply if text is present.
-    if (hasText && chatId !== undefined) {
+    if (chatId !== undefined) {
+        if (!hasText) {
+            return NextResponse.json({ ok: true });
+        }
+
+        if (!youtubeId) {
+            try {
+                await sendTelegramMessage({
+                    chatId,
+                    text: "Please send me a valid YouTube video link.",
+                });
+            } catch (err) {
+                console.error("[webhook] Failed to send reply:", err);
+            }
+            return NextResponse.json({ ok: true });
+        }
+
         try {
-            await sendTelegramMessage({
-                chatId,
-                text: "Accepted. Generating notes and quiz 👇",
-            });
+            const result = await enqueueJob(chatId, youtubeId);
+            enqueueStatus = result.status;
+
+            console.log("[webhook]", { update_id: updateId, chat_id: chatId, hasText, hasYouTubeId, enqueueStatus });
+
+            if (result.status === 'already_completed') {
+                const existing = await getResultByYoutubeId(youtubeId);
+                if (existing) {
+                    await sendTelegramMessageChunks(chatId, existing.markdown);
+                } else {
+                    await sendTelegramMessage({ chatId, text: "Result completed but not found. Please try again later." });
+                }
+            } else if (result.status === 'already_processing') {
+                await sendTelegramMessage({ chatId, text: "Already processing this video. I will send the result soon." });
+            } else if (result.status === 'enqueued') {
+                await sendTelegramMessage({ chatId, text: "Queued. Generating notes and quiz…" });
+            }
         } catch (err) {
-            // Log the error without exposing secrets or message content.
-            console.error("[webhook] Failed to send reply:", err);
+            console.error("[webhook] Failed to process job:", err);
+            try {
+                await sendTelegramMessage({ chatId, text: "An error occurred while queueing the video." });
+            } catch (sendErr) {
+                console.error("[webhook] Failed to send error reply:", sendErr);
+            }
         }
     }
 
