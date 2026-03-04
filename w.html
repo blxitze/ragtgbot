@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Eco-habit Welcome Onboarding</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#2bee79",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#102217",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white transition-colors duration-300">
+    <div class="relative flex h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto shadow-2xl">
+        <!-- Top App Bar / Navigation -->
+        <div class="flex items-center p-6 justify-end">
+            <button
+                class="text-primary text-base font-semibold leading-normal tracking-tight hover:opacity-80 transition-opacity">
+                Skip
+            </button>
+        </div>
+        <!-- Hero Illustration -->
+        <div class="flex-1 flex flex-col items-center justify-center px-6">
+            <div class="@container w-full">
+                <div class="w-full bg-center bg-no-repeat bg-cover flex flex-col justify-end overflow-hidden rounded-xl min-h-[380px] shadow-lg border border-white/5"
+                    data-alt="Person planting a small green tree sapling in soil"
+                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAafkQ-ipUG-xdPIb6M5V5I1T1RICHf2QeK4vniTKh_bUCp4WumKG1HPn4Pfl74__caAlSTP1LSfoXpdgoEtlR3uSfSLEw5iMozx9LdwZViw7Qv2GkjABGvbweocjHq4ANWGPi2p2Yl6EJd_SS5yojqElb9k1EW_GB-cdRMsdKOqqZe2eBCl1pC-OawvqsKXKzvUf57jSy5DpAfipDi-6_BYZPwPhzR1m9RAa4q93Stjh3axvaRJFhAifiCu3SZMskRK7ufsiYptR8");'>
+                    <!-- Gradient overlay for text readability if needed -->
+                    <div class="w-full h-full bg-gradient-to-t from-background-dark/60 to-transparent"></div>
+                </div>
+            </div>
+        </div>
+        <!-- Content Section -->
+        <div class="flex flex-col items-center px-8 pt-8 pb-4">
+            <!-- Headline -->
+            <h1 class="text-white tracking-tight text-[32px] font-bold leading-tight text-center mb-4">
+                Small Steps, <br />
+                <span class="text-primary">Big Impact</span>
+            </h1>
+            <!-- Body Text -->
+            <p
+                class="text-slate-400 dark:text-slate-300 text-base font-normal leading-relaxed text-center max-w-[300px]">
+                Track your daily habits, reduce your carbon footprint, and join a global community dedicated to saving
+                our planet.
+            </p>
+            <!-- Page Indicators -->
+            <div class="flex w-full flex-row items-center justify-center gap-2.5 py-8">
+                <div class="h-1.5 w-6 rounded-full bg-primary"></div>
+                <div class="h-1.5 w-1.5 rounded-full bg-slate-700"></div>
+                <div class="h-1.5 w-1.5 rounded-full bg-slate-700"></div>
+            </div>
+        </div>
+        <!-- Action Section -->
+        <div class="px-8 pb-12 flex flex-col gap-4">
+            <button
+                class="w-full bg-primary text-background-dark font-bold text-lg py-4 rounded-full shadow-lg shadow-primary/20 active:scale-[0.98] transition-all">
+                Get Started
+            </button>
+            <button
+                class="w-full bg-transparent text-slate-400 font-medium text-sm py-2 hover:text-white transition-colors">
+                Already have an account? <span class="text-primary">Log In</span>
+            </button>
+        </div>
+        <!-- iOS Home Indicator Spacing -->
+        <div class="h-4 w-full"></div>
+    </div>
+</body>
+
+</html>
