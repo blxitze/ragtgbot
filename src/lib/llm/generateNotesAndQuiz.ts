@@ -56,3 +56,4 @@ function chunkText(text: string, size: number, overlap: number): string[] {
     }
     return chunks;
 }
+
