@@ -7,18 +7,18 @@
 import { supabase } from '../supabase/serverClient';
 
 export async function createQuizSession(chatId: number, youtubeId: string): Promise<string> {
+    // Upsert to reuse session if it already exists for this chat and video
     const { data, error } = await supabase
         .from('quiz_sessions')
-        .insert({
-            chat_id: chatId,
-            youtube_id: youtubeId,
-            current_index: 0
-        })
+        .upsert(
+            { chat_id: chatId, youtube_id: youtubeId, current_index: 0 },
+            { onConflict: 'chat_id,youtube_id' }
+        )
         .select('id')
         .single();
 
     if (error) {
-        throw new Error(`[db] Failed to create quiz session: ${error.message}`);
+        throw new Error(`[db] Failed to create or update quiz session: ${error.message}`);
     }
 
     return data.id;
@@ -47,6 +47,24 @@ export async function setQuizSessionIndex(sessionId: string, nextIndex: number):
     if (error) {
         throw new Error(`[db] Failed to update quiz session index: ${error.message}`);
     }
+}
+
+/**
+ * Atomically advances the session index only if it matches expectedIndex.
+ * Returns true if the update was successful (atomic lock acquired).
+ */
+export async function advanceQuizSession(sessionId: string, expectedIndex: number, nextIndex: number): Promise<boolean> {
+    const { data, error } = await supabase
+        .from('quiz_sessions')
+        .update({ current_index: nextIndex })
+        .match({ id: sessionId, current_index: expectedIndex })
+        .select('id');
+
+    if (error) {
+        throw new Error(`[db] Failed to advance quiz session: ${error.message}`);
+    }
+
+    return (data?.length ?? 0) > 0;
 }
 
 export async function mapPollToSession(pollId: string, sessionId: string, questionIndex: number): Promise<void> {

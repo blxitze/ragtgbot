@@ -23,7 +23,7 @@ export async function upsertResult(
     }
 }
 
-export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdown: string; quiz_json: any } | null> {
+export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdown: string; quiz_json: any; notes_json: any } | null> {
     // We need to join over to `videos` table to query by youtube_id
     const { data, error } = await supabase
         .from('videos')
@@ -32,7 +32,8 @@ export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdow
       youtube_id,
       results (
         markdown,
-        quiz_json
+        quiz_json,
+        notes_json
       )
     `)
         .eq('youtube_id', youtubeId)
@@ -55,6 +56,7 @@ export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdow
 
     return {
         markdown: (res as any).markdown,
-        quiz_json: (res as any).quiz_json
+        quiz_json: (res as any).quiz_json,
+        notes_json: (res as any).notes_json
     };
 }

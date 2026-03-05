@@ -19,9 +19,9 @@ const shortQSchema = z.object({
 });
 
 const quizSchema = z.object({
-    mcq: z.array(mcqSchema).min(1),
-    tf: z.array(tfSchema).min(1),
-    short: z.array(shortQSchema).min(1),
+    mcq: z.array(mcqSchema).length(5),
+    tf: z.array(tfSchema).length(5),
+    short: z.array(shortQSchema).length(3),
 });
 
 const definitionSchema = z.object({

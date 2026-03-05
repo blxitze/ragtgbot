@@ -1,7 +1,7 @@
 import { NotesAndQuiz } from './types';
 
-export function renderNotesAndQuizMarkdown(data: NotesAndQuiz): string {
-    const { tldr, outline, sections, quiz } = data;
+export function renderNotesMarkdown(data: NotesAndQuiz): string {
+    const { tldr, outline, sections } = data;
 
     let md = '';
 
@@ -37,6 +37,14 @@ export function renderNotesAndQuizMarkdown(data: NotesAndQuiz): string {
         }
         md += '\n';
     }
+
+    return md.trim();
+}
+
+export function renderNotesAndQuizMarkdown(data: NotesAndQuiz): string {
+    const { quiz } = data;
+    let md = renderNotesMarkdown(data);
+    md += '\n\n';
 
     // Quiz
     md += `## Quiz\n\n`;

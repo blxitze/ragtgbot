@@ -1,6 +1,6 @@
 import { getTranscript } from "../transcript/getTranscript";
 import { generateNotesAndQuiz } from "../llm/generateNotesAndQuiz";
-import { renderNotesAndQuizMarkdown } from "../llm/renderMarkdown";
+import { renderNotesAndQuizMarkdown, renderNotesMarkdown } from "../llm/renderMarkdown";
 import { upsertVideoByYoutubeId } from "../db/videos";
 import { upsertTranscript } from "../db/transcripts";
 import { upsertResult } from "../db/results";
@@ -19,11 +19,12 @@ export async function processJob(job: { jobId: string; youtubeId: string; chatId
         await sendTelegramMessage({ chatId, text: "Generating notes and quiz…" });
         const result = await generateNotesAndQuiz({ transcriptText: transcript.fullText });
 
-        const markdown = renderNotesAndQuizMarkdown(result);
+        const fullMarkdown = renderNotesAndQuizMarkdown(result);
+        const notesMarkdown = renderNotesMarkdown(result);
 
-        await upsertResult(video.id, result, result.quiz, markdown);
+        await upsertResult(video.id, result, result.quiz, fullMarkdown);
 
-        await sendTelegramMessageChunks(chatId, markdown);
+        await sendTelegramMessageChunks(chatId, notesMarkdown);
 
         // Send a dedicated message with the "Start Quiz" button
         await sendTelegramMessage({

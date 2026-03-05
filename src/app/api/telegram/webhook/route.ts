@@ -8,12 +8,13 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { sendTelegramMessage, sendTelegramMessageChunks, sendTelegramQuizPoll } from "@/lib/telegram";
+import { sendTelegramMessage, sendTelegramMessageChunks, sendTelegramQuizPoll, answerTelegramCallbackQuery } from "@/lib/telegram";
 import { enqueueJob } from "@/lib/db/jobs";
 import { getResultByYoutubeId } from "@/lib/db/results";
 import { parseYouTubeId } from "@/lib/youtube";
-import { createQuizSession, getQuizSession, setQuizSessionIndex, mapPollToSession, getPollMapping } from "@/lib/db/quizSessions";
+import { createQuizSession, getQuizSession, setQuizSessionIndex, advanceQuizSession, mapPollToSession, getPollMapping } from "@/lib/db/quizSessions";
 import type { MCQ } from "@/lib/llm/types";
+import { renderNotesMarkdown } from "@/lib/llm/renderMarkdown";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,14 +51,7 @@ function isTelegramUpdate(value: unknown): value is TelegramUpdate {
     return typeof v["update_id"] === "number";
 }
 
-async function answerCallbackQuery(callbackQueryId: string) {
-    const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`;
-    await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callback_query_id: callbackQueryId }),
-    }).catch(console.error);
-}
+// Removed redundant answerCallbackQuery helper
 
 // ---------------------------------------------------------------------------
 // Handler
@@ -90,31 +84,44 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // 1. Handle callback_query (Start Quiz)
     if (update.callback_query) {
         const cb = update.callback_query;
-        const chatId = cb.from.id;
         const queryData = cb.data ?? "";
+        const chatId = cb.message?.chat?.id;
 
-        if (queryData.startsWith("quiz:start:")) {
+        if (queryData.startsWith("quiz:start:") && chatId) {
             const youtubeId = queryData.replace("quiz:start:", "");
-            console.log("[webhook] Start Quiz requested", { chat_id: chatId, youtube_id: youtubeId });
+            console.log("[webhook] callback_query", { chat_id: chatId, data: queryData.slice(0, 20) });
+
+            // Acknowledge immediately to remove spinner
+            await answerTelegramCallbackQuery(cb.id, "Starting quiz…").catch(console.error);
 
             const result = await getResultByYoutubeId(youtubeId);
-            if (!result || !result.quiz_json?.mcq?.length) {
-                await sendTelegramMessage({ chatId, text: "Sorry, quiz not found for this video." });
+            const mcqs = result?.quiz_json?.mcq as MCQ[] | undefined;
+
+            if (!mcqs || mcqs.length === 0) {
+                await sendTelegramMessage({ chatId, text: "Sorry, no quiz questions found for this video." });
             } else {
                 const sessionId = await createQuizSession(chatId, youtubeId);
-                const firstMcq = result.quiz_json.mcq[0] as MCQ;
+                const firstMcq = mcqs[0];
 
-                const { pollId } = await sendTelegramQuizPoll({
-                    chatId,
-                    question: firstMcq.question,
-                    options: firstMcq.choices,
-                    correctOptionIndex: firstMcq.choices.indexOf(firstMcq.correctAnswer),
-                    explanation: firstMcq.explanation
-                });
+                const correctIndex = firstMcq.choices.indexOf(firstMcq.correctAnswer);
+                if (correctIndex === -1) {
+                    console.error("[webhook] MCQ correct answer not in choices", { youtube_id: youtubeId });
+                    await sendTelegramMessage({ chatId, text: "Sorry, there was an error with the quiz data." });
+                } else {
+                    const { pollId } = await sendTelegramQuizPoll({
+                        chatId,
+                        question: firstMcq.question,
+                        options: firstMcq.choices,
+                        correctOptionIndex: correctIndex,
+                        explanation: firstMcq.explanation
+                    });
 
-                await mapPollToSession(pollId, sessionId, 0);
+                    await mapPollToSession(pollId, sessionId, 0);
+                }
             }
-            await answerCallbackQuery(cb.id);
+        } else {
+            // Always answer even if unhandled to avoid permanent loading UI
+            await answerTelegramCallbackQuery(cb.id).catch(console.error);
         }
         return NextResponse.json({ ok: true });
     }
@@ -126,36 +133,74 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
         if (mapping) {
             const session = await getQuizSession(mapping.session_id);
+            const nextIndex = mapping.question_index + 1;
 
-            // Race condition check: Only send next poll if session hasn't advanced past this question
+            // Strict progression check: If the session has already moved past this question, ignore.
+            // This is our primary idempotency guard before we even try the DB update.
             if (session.current_index > mapping.question_index) {
-                console.log("[webhook] Skipping poll_answer; next question already sent.", { poll_id: answer.poll_id });
+                console.log("[webhook] poll_answer already processed", {
+                    poll_id: answer.poll_id.slice(-8),
+                    session_index: session.current_index,
+                    mapping_index: mapping.question_index
+                });
                 return NextResponse.json({ ok: true });
             }
 
             const result = await getResultByYoutubeId(session.youtube_id);
+            const mcqs = result?.quiz_json?.mcq as MCQ[] | undefined;
+            const mcqCount = Array.isArray(mcqs) ? mcqs.length : 0;
 
-            if (result && result.quiz_json?.mcq) {
-                const mcqs = result.quiz_json.mcq as MCQ[];
-                const nextIndex = mapping.question_index + 1;
+            console.log("[webhook] poll_answer", {
+                session_id: session.id.slice(0, 8),
+                chat_id: session.chat_id,
+                question_index: mapping.question_index,
+                nextIndex,
+                mcqCount,
+                hasMcqs: mcqCount > 0
+            });
 
-                if (nextIndex < mcqs.length) {
-                    const nextMcq = mcqs[nextIndex];
-                    const { pollId } = await sendTelegramQuizPoll({
-                        chatId: session.chat_id,
-                        question: nextMcq.question,
-                        options: nextMcq.choices,
-                        correctOptionIndex: nextMcq.choices.indexOf(nextMcq.correctAnswer),
-                        explanation: nextMcq.explanation
+            if (nextIndex < mcqCount && mcqs) {
+                const nextMcq = mcqs[nextIndex];
+                const correctIndex = nextMcq.choices.indexOf(nextMcq.correctAnswer);
+
+                if (correctIndex === -1) {
+                    console.error("[webhook] MCQ correct answer not in choices", { session_id: session.id });
+                    return NextResponse.json({ ok: true });
+                }
+
+                // Atomic advancement: ensures only one 'next' poll is sent if multiple answers arrive.
+                // We advance from the specific index we just answered.
+                const advanced = await advanceQuizSession(session.id, mapping.question_index, nextIndex);
+                if (!advanced) {
+                    // Fetch current state for better debug logs
+                    const freshSession = await getQuizSession(session.id);
+                    console.log("[webhook] Quiz already advanced (CAS failed).", {
+                        session_id: session.id.slice(0, 8),
+                        expected: mapping.question_index,
+                        actual: freshSession.current_index
                     });
+                    return NextResponse.json({ ok: true });
+                }
 
-                    await setQuizSessionIndex(session.id, nextIndex);
-                    await mapPollToSession(pollId, session.id, nextIndex);
-                } else {
+                const { pollId } = await sendTelegramQuizPoll({
+                    chatId: session.chat_id,
+                    question: nextMcq.question,
+                    options: nextMcq.choices,
+                    correctOptionIndex: correctIndex,
+                    explanation: nextMcq.explanation
+                });
+
+                await mapPollToSession(pollId, session.id, nextIndex);
+            } else if (nextIndex >= mcqCount) {
+                // If this specific answer triggers completion, we also need to guard it
+                const advanced = await advanceQuizSession(session.id, mapping.question_index, nextIndex);
+                if (advanced) {
                     await sendTelegramMessage({
                         chatId: session.chat_id,
                         text: "Quiz complete! ✅ Great job."
                     });
+                } else {
+                    console.log("[webhook] Completion already processed (CAS failed).", { session_id: session.id.slice(0, 8) });
                 }
             }
         }
@@ -195,7 +240,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             if (result.status === 'already_completed') {
                 const existing = await getResultByYoutubeId(youtubeId);
                 if (existing) {
-                    await sendTelegramMessageChunks(chatId, existing.markdown);
+                    // Send notes-only markdown
+                    const notesMarkdown = renderNotesMarkdown({
+                        tldr: existing.notes_json.tldr,
+                        outline: existing.notes_json.outline,
+                        sections: existing.notes_json.sections,
+                        quiz: existing.quiz_json
+                    });
+
+                    await sendTelegramMessageChunks(chatId, notesMarkdown);
                     await sendTelegramMessage({
                         chatId,
                         text: "Ready to test your knowledge?",

@@ -13,38 +13,50 @@ export async function generateNotesAndQuiz(input: {
 }): Promise<NotesAndQuiz> {
     const { title, transcriptText } = input;
 
-    let rawJsonOutput: string;
+    const maxRetries = 2;
+    let attempts = 0;
 
-    if (transcriptText.length <= CHUNK_THRESHOLD) {
-        // Single-pass generation
-        const prompt = singlePassPrompt(title, transcriptText);
-        rawJsonOutput = await callOpenAI(systemPrompt, prompt);
-    } else {
-        // Map-reduce generation
-        const chunks = chunkText(transcriptText, CHUNK_SIZE, CHUNK_OVERLAP);
-        const chunkSummaries: string[] = [];
+    while (attempts <= maxRetries) {
+        let rawJsonOutput: string;
 
-        for (const chunk of chunks) {
-            const cPrompt = mapPrompt(chunk);
-            const res = await callOpenAI(systemPrompt, cPrompt);
-            chunkSummaries.push(res);
+        if (transcriptText.length <= CHUNK_THRESHOLD) {
+            // Single-pass generation
+            const prompt = singlePassPrompt(title, transcriptText);
+            rawJsonOutput = await callOpenAI(systemPrompt, prompt);
+        } else {
+            // Map-reduce generation
+            const chunks = chunkText(transcriptText, CHUNK_SIZE, CHUNK_OVERLAP);
+            const chunkSummaries: string[] = [];
+
+            for (const chunk of chunks) {
+                const cPrompt = mapPrompt(chunk);
+                const res = await callOpenAI(systemPrompt, cPrompt);
+                chunkSummaries.push(res);
+            }
+
+            // Reduce
+            const combinedSummaries = chunkSummaries.map((s, i) => `Chunk ${i + 1}:\n${s}`).join('\n\n');
+            const rPrompt = reducePrompt(title, combinedSummaries);
+            rawJsonOutput = await callOpenAI(systemPrompt, rPrompt);
         }
 
-        // Reduce
-        const combinedSummaries = chunkSummaries.map((s, i) => `Chunk ${i + 1}:\n${s}`).join('\n\n');
-        const rPrompt = reducePrompt(title, combinedSummaries);
-        rawJsonOutput = await callOpenAI(systemPrompt, rPrompt);
+        // Parse and validate
+        try {
+            const cleanJson = rawJsonOutput.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleanJson);
+            const validated = notesAndQuizSchema.parse(parsed) as NotesAndQuiz;
+            return validated;
+        } catch (error) {
+            attempts++;
+            console.error(`[llm] LLM validation failed (attempt ${attempts}): ${error instanceof Error ? error.message : String(error)}`);
+
+            if (attempts > maxRetries) {
+                throw new Error(`Failed to generate valid NotesAndQuiz JSON after ${attempts} attempts. Final error: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
     }
 
-    // Parse and validate
-    try {
-        const cleanJson = rawJsonOutput.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleanJson);
-        const validated = notesAndQuizSchema.parse(parsed) as NotesAndQuiz;
-        return validated;
-    } catch (error) {
-        throw new Error(`Failed to generate valid NotesAndQuiz JSON from transcript. Validation error: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    throw new Error("Failed to generate notes: unknown iteration error");
 }
 
 function chunkText(text: string, size: number, overlap: number): string[] {

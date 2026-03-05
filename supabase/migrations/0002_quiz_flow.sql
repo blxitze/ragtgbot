@@ -17,6 +17,6 @@ CREATE TABLE IF NOT EXISTS quiz_polls (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for faster lookups
-CREATE INDEX idx_quiz_sessions_chat_youtube ON quiz_sessions(chat_id, youtube_id);
-CREATE INDEX idx_quiz_polls_session ON quiz_polls(session_id);
+-- Unique constraint for upsert support
+CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_sessions_chat_youtube ON quiz_sessions(chat_id, youtube_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_polls_session ON quiz_polls(session_id);

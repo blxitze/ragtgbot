@@ -17,9 +17,9 @@ describe('generateNotesAndQuiz', () => {
             outline: ["Topic 1"],
             sections: [{ title: "Topic 1", content: ["Detail 1"] }],
             quiz: {
-                mcq: [{ question: "Q1", choices: ["A", "B", "C", "D"], correctAnswer: "A", explanation: "Exp" }],
-                tf: [{ question: "True?", correctAnswer: true, explanation: "Exp 2" }],
-                short: [{ question: "Short Q?", suggestedAnswer: "Ans" }]
+                mcq: Array(5).fill({ question: "Q1", choices: ["A", "B", "C", "D"], correctAnswer: "A", explanation: "Exp" }),
+                tf: Array(5).fill({ question: "True?", correctAnswer: true, explanation: "Exp 2" }),
+                short: Array(3).fill({ question: "Short Q?", suggestedAnswer: "Ans" })
             }
         });
 
@@ -51,9 +51,9 @@ describe('generateNotesAndQuiz', () => {
             outline: ["Topic 1"],
             sections: [{ title: "Topic 1", content: ["Detail 1"] }],
             quiz: {
-                mcq: [{ question: "Q1", choices: ["A", "B", "C", "D"], correctAnswer: "A", explanation: "Exp" }],
-                tf: [{ question: "True?", correctAnswer: true, explanation: "Exp 2" }],
-                short: [{ question: "Short Q?", suggestedAnswer: "Ans" }]
+                mcq: Array(5).fill({ question: "Q1", choices: ["A", "B", "C", "D"], correctAnswer: "A", explanation: "Exp" }),
+                tf: Array(5).fill({ question: "True?", correctAnswer: true, explanation: "Exp 2" }),
+                short: Array(3).fill({ question: "Short Q?", suggestedAnswer: "Ans" })
             }
         });
 
@@ -75,5 +75,56 @@ describe('generateNotesAndQuiz', () => {
 
         expect(result.tldr).toBe("Long test tldr");
         expect(openaiClient.callOpenAI).toHaveBeenCalledTimes(4); // 3 maps + 1 reduce
+    });
+
+    it('should retry generation up to 2 times if validation fails (quantity)', async () => {
+        const invalidJson = JSON.stringify({
+            tldr: "T",
+            outline: ["O"],
+            sections: [{ title: "S", content: ["C"] }],
+            quiz: {
+                mcq: [], // Invalid: too few
+                tf: [],
+                short: []
+            }
+        });
+
+        const validJson = JSON.stringify({
+            tldr: "Success",
+            outline: ["O"],
+            sections: [{ title: "S", content: ["C"] }],
+            quiz: {
+                mcq: Array(5).fill({ question: "Q", choices: ["1", "2", "3", "4"], correctAnswer: "1", explanation: "Exp" }),
+                tf: Array(5).fill({ question: "T", correctAnswer: true, explanation: "Exp" }),
+                short: Array(3).fill({ question: "S", suggestedAnswer: "Ans" })
+            }
+        });
+
+        // 1st attempt fails, 2nd attempt succeeds
+        vi.mocked(openaiClient.callOpenAI)
+            .mockResolvedValueOnce(invalidJson)
+            .mockResolvedValueOnce(validJson);
+
+        const result = await generateNotesAndQuiz({ transcriptText: 'Short text' });
+
+        expect(result.tldr).toBe('Success');
+        expect(openaiClient.callOpenAI).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw after max retries exhausted', async () => {
+        const invalidJson = JSON.stringify({
+            tldr: "T",
+            outline: ["O"],
+            sections: [{ title: "S", content: ["C"] }],
+            quiz: { mcq: [], tf: [], short: [] }
+        });
+
+        vi.mocked(openaiClient.callOpenAI).mockResolvedValue(invalidJson);
+
+        await expect(generateNotesAndQuiz({ transcriptText: 'Short text' }))
+            .rejects
+            .toThrow(/after 3 attempts/); // 0, 1, 2 makes it 3 total attempts
+
+        expect(openaiClient.callOpenAI).toHaveBeenCalledTimes(3);
     });
 });

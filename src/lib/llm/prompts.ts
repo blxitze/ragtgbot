@@ -26,9 +26,9 @@ Make sure the output strictly adheres to the schema:
   - definitions: (Optional) Array of { "term": string, "definition": string }.
   - examples: (Optional) Array of example strings.
 - quiz: A quiz covering all the chunks, containing:
-  - mcq: Array of at least one multiple choice question { "question": string, "choices": [string, string, string, string], "correctAnswer": string, "explanation": string }. "choices" MUST have exactly 4 items.
-  - tf: Array of at least one true/false question { "question": string, "correctAnswer": boolean, "explanation": string }.
-  - short: Array of at least one short answer question { "question": string, "suggestedAnswer": string }.
+  - mcq: Array of EXACTLY 5 multiple choice questions { "question": string, "choices": [string, string, string, string], "correctAnswer": string, "explanation": string }. "choices" MUST have exactly 4 items.
+  - tf: Array of EXACTLY 5 true/false questions { "question": string, "correctAnswer": boolean, "explanation": string }.
+  - short: Array of EXACTLY 3 short answer questions { "question": string, "suggestedAnswer": string }.
 
 Output valid JSON only.`;
 
@@ -47,8 +47,8 @@ Make sure the output strictly adheres to the schema:
   - definitions: (Optional) Array of { "term": string, "definition": string }.
   - examples: (Optional) Array of example strings.
 - quiz: A quiz containing:
-  - mcq: Array of at least one multiple choice question { "question": string, "choices": [string, string, string, string], "correctAnswer": string, "explanation": string }. "choices" MUST have exactly 4 items.
-  - tf: Array of at least one true/false question { "question": string, "correctAnswer": boolean, "explanation": string }.
-  - short: Array of at least one short answer question { "question": string, "suggestedAnswer": string }.
+  - mcq: Array of EXACTLY 5 multiple choice questions { "question": string, "choices": [string, string, string, string], "correctAnswer": string, "explanation": string }. "choices" MUST have exactly 4 items.
+  - tf: Array of EXACTLY 5 true/false questions { "question": string, "correctAnswer": boolean, "explanation": string }.
+  - short: Array of EXACTLY 3 short answer questions { "question": string, "suggestedAnswer": string }.
 
 Output valid JSON only.`;

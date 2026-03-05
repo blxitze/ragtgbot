@@ -133,3 +133,36 @@ export async function sendTelegramQuizPoll({
 
     return { pollId };
 }
+
+/**
+ * Acknowledges a callback query from an inline keyboard button.
+ */
+export async function answerTelegramCallbackQuery(
+    callbackQueryId: string,
+    text?: string
+): Promise<void> {
+    const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`;
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                callback_query_id: callbackQueryId,
+                text,
+            }),
+        });
+    } catch (cause) {
+        throw new Error("[telegram] Network error while answering callback query", { cause });
+    }
+
+    if (!response.ok) {
+        throw new Error(`[telegram] HTTP error from Telegram API (answerCallbackQuery): ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.ok) {
+        throw new Error(`[telegram] Telegram API (answerCallbackQuery) returned ok: false — ${data.description ?? "no description"}`);
+    }
+}
