@@ -1,18 +1,17 @@
 /**
  * src/lib/telegram.ts
  *
- * Server-only utility for sending messages via the Telegram Bot API.
- * Enforced at build time: will error if imported from a client component.
+ * Utility for sending messages via the Telegram Bot API.
+ * Safe for both Next.js server code and standalone Node scripts.
  */
 
-import "server-only";
-
-import { env } from "@/lib/env";
+import { env } from "./env";
 import { splitTelegramMessage } from "./telegramSplit";
 
 interface SendMessageParams {
     chatId: number;
     text: string;
+    replyMarkup?: any;
 }
 
 interface TelegramApiResponse {
@@ -27,6 +26,7 @@ interface TelegramApiResponse {
 export async function sendTelegramMessage({
     chatId,
     text,
+    replyMarkup,
 }: SendMessageParams): Promise<void> {
     const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 
@@ -35,7 +35,11 @@ export async function sendTelegramMessage({
         response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: chatId, text }),
+            body: JSON.stringify({
+                chat_id: chatId,
+                text,
+                reply_markup: replyMarkup
+            }),
         });
     } catch (cause) {
         throw new Error("[telegram] Network error while sending message", {
@@ -71,4 +75,61 @@ export async function sendTelegramMessageChunks(
         await sendTelegramMessage({ chatId, text: chunk });
         await new Promise((resolve) => setTimeout(resolve, 200));
     }
+}
+
+/**
+ * Sends a native Telegram quiz poll to a chat.
+ */
+export async function sendTelegramQuizPoll({
+    chatId,
+    question,
+    options,
+    correctOptionIndex,
+    explanation,
+}: {
+    chatId: number;
+    question: string;
+    options: string[];
+    correctOptionIndex: number;
+    explanation?: string;
+}): Promise<{ pollId: string }> {
+    const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendPoll`;
+
+    // Safe truncation
+    const safeQuestion = question.slice(0, 300);
+    const safeOptions = options.map(o => o.slice(0, 100));
+    const safeExplanation = explanation?.slice(0, 200);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                chat_id: chatId,
+                question: safeQuestion,
+                options: safeOptions,
+                is_anonymous: false,
+                type: "quiz",
+                correct_option_id: correctOptionIndex,
+                explanation: safeExplanation,
+            }),
+        });
+    } catch (cause) {
+        throw new Error("[telegram] Network error while sending poll", { cause });
+    }
+
+    if (!response.ok) {
+        throw new Error(`[telegram] HTTP error from Telegram API (sendPoll): ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.ok) {
+        throw new Error(`[telegram] Telegram API (sendPoll) returned ok: false — ${data.description ?? "no description"}`);
+    }
+
+    const pollId = data.result.poll.id;
+    console.log("[telegram] Quiz poll sent", { pollId, chat_id: chatId });
+
+    return { pollId };
 }

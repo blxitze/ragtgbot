@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { processJob } from './processJob';
 
 // Mock dependencies
-vi.mock('../transcript/youtubeTranscript', () => ({
-    getYouTubeTranscript: vi.fn(),
+vi.mock('../transcript/getTranscript', () => ({
+    getTranscript: vi.fn(),
 }));
-import { getYouTubeTranscript } from '../transcript/youtubeTranscript';
+import { getTranscript } from '../transcript/getTranscript';
 
 vi.mock('../llm/generateNotesAndQuiz', () => ({
     generateNotesAndQuiz: vi.fn(),
@@ -50,7 +50,7 @@ describe('processJob', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         // Setup default successful mock implementations
-        vi.mocked(getYouTubeTranscript).mockResolvedValue({ language: 'en', fullText: 'Hello world transcript', segments: [] } as any);
+        vi.mocked(getTranscript).mockResolvedValue({ language: 'en', fullText: 'Hello world transcript', segments: [] });
         vi.mocked(upsertVideoByYoutubeId).mockResolvedValue({ id: 'video-1' } as any);
         vi.mocked(upsertTranscript).mockResolvedValue(true as any);
         vi.mocked(generateNotesAndQuiz).mockResolvedValue({ tldr: 'Test tldr', outline: ['Test outline'], sections: [], quiz: { mcq: [], tf: [], short: [] } } as any);
@@ -65,7 +65,7 @@ describe('processJob', () => {
         await processJob(defaultJob);
 
         expect(sendTelegramMessage).toHaveBeenCalledWith({ chatId: 999, text: 'Fetching transcript…' });
-        expect(getYouTubeTranscript).toHaveBeenCalledWith('12345678901');
+        expect(getTranscript).toHaveBeenCalledWith('12345678901');
         expect(upsertVideoByYoutubeId).toHaveBeenCalledWith('12345678901');
         expect(upsertTranscript).toHaveBeenCalledWith('video-1', 'youtube_subtitles', 'en', 'Hello world transcript');
 
@@ -83,7 +83,7 @@ describe('processJob', () => {
     it('handles transcript not found gracefully', async () => {
         const notFoundError = new Error('Transcript not found');
         notFoundError.name = 'TranscriptNotFoundError';
-        vi.mocked(getYouTubeTranscript).mockRejectedValueOnce(notFoundError);
+        vi.mocked(getTranscript).mockRejectedValueOnce(notFoundError);
 
         await processJob(defaultJob);
 

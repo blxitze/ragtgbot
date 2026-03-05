@@ -1,18 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
-import { env } from '../env';
+/**
+ * src/lib/supabase/serverClient.ts
+ *
+ * Re-exports the Node-safe Supabase client.
+ * Existing imports (`from '../supabase/serverClient'`) continue to work
+ * in both Next.js and standalone Node runtimes.
+ */
 
-// This file should strictly only run on the server
-import 'server-only';
-
-// Initialize the single Supabase client for all DB operations using the service_role key
-export const supabase = createClient(
-    env.SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-        auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-        }
-    }
-);
+export { supabase } from "./serverClient.node";

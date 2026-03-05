@@ -23,7 +23,7 @@ export async function upsertResult(
     }
 }
 
-export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdown: string } | null> {
+export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdown: string; quiz_json: any } | null> {
     // We need to join over to `videos` table to query by youtube_id
     const { data, error } = await supabase
         .from('videos')
@@ -31,7 +31,8 @@ export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdow
       id,
       youtube_id,
       results (
-        markdown
+        markdown,
+        quiz_json
       )
     `)
         .eq('youtube_id', youtubeId)
@@ -44,19 +45,16 @@ export async function getResultByYoutubeId(youtubeId: string): Promise<{ markdow
         throw new Error(`Error fetching result: ${error.message}`);
     }
 
-    // Supabase returns related table as an array if it's a one-to-many, 
-    // but since our fk is ON DELETE CASCADE UNIQUE it might return exactly object or array depending on PostgREST type generation. 
-    // We'll safely parse the array if PostgREST interprets it as an array or object.
     const resultRelation = data?.results;
     if (!resultRelation) {
         return null;
     }
 
-    if (Array.isArray(resultRelation)) {
-        if (resultRelation.length === 0) return null;
-        return { markdown: resultRelation[0].markdown };
-    } else {
-        // PostgREST single
-        return { markdown: (resultRelation as { markdown: string }).markdown };
-    }
+    const res = Array.isArray(resultRelation) ? resultRelation[0] : resultRelation;
+    if (!res) return null;
+
+    return {
+        markdown: (res as any).markdown,
+        quiz_json: (res as any).quiz_json
+    };
 }

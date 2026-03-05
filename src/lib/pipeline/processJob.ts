@@ -1,4 +1,4 @@
-import { getYouTubeTranscript } from "../transcript/youtubeTranscript";
+import { getTranscript } from "../transcript/getTranscript";
 import { generateNotesAndQuiz } from "../llm/generateNotesAndQuiz";
 import { renderNotesAndQuizMarkdown } from "../llm/renderMarkdown";
 import { upsertVideoByYoutubeId } from "../db/videos";
@@ -11,7 +11,7 @@ export async function processJob(job: { jobId: string; youtubeId: string; chatId
     const { jobId, youtubeId, chatId } = job;
     try {
         await sendTelegramMessage({ chatId, text: "Fetching transcript…" });
-        const transcript = await getYouTubeTranscript(youtubeId);
+        const transcript = await getTranscript(youtubeId);
 
         const video = await upsertVideoByYoutubeId(youtubeId);
         await upsertTranscript(video.id, "youtube_subtitles", transcript.language || "en", transcript.fullText);
@@ -21,20 +21,35 @@ export async function processJob(job: { jobId: string; youtubeId: string; chatId
 
         const markdown = renderNotesAndQuizMarkdown(result);
 
-        // Pass JSON as unknown/any correctly
         await upsertResult(video.id, result, result.quiz, markdown);
 
         await sendTelegramMessageChunks(chatId, markdown);
 
+        // Send a dedicated message with the "Start Quiz" button
+        await sendTelegramMessage({
+            chatId,
+            text: "Ready to test your knowledge?",
+            replyMarkup: {
+                inline_keyboard: [[
+                    { text: "🚀 Start Quiz", callback_data: `quiz:start:${youtubeId}` }
+                ]]
+            }
+        });
+
         await markJobCompleted(jobId);
-    } catch (error: any) {
-        // Checking instance of TranscriptNotFoundError generically
-        if (error?.name === 'TranscriptNotFoundError' || error?.message?.includes('transcript') || error?.code === 'TRANSCRIPT_NOT_FOUND') {
-            await markJobFailed(jobId, error.message);
+    } catch (error: unknown) {
+        const isError = error instanceof Error;
+        const errorName = isError ? error.name : "UnknownError";
+        const rawMessage = isError ? error.message : String(error);
+        const safeMessage = rawMessage.slice(0, 500);
+
+        console.error("[processJob] Failed:", { jobId, youtubeId, errorName, safeMessage });
+
+        if (isError && (error.name === 'TranscriptNotFoundError' || rawMessage.toLowerCase().includes('transcript'))) {
+            await markJobFailed(jobId, safeMessage);
             await sendTelegramMessage({ chatId, text: "Sorry, I couldn't find a transcript for this video." }).catch(console.error);
         } else {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            await markJobFailed(jobId, errorMessage);
+            await markJobFailed(jobId, safeMessage);
             await sendTelegramMessage({ chatId, text: "An error occurred while processing the video." }).catch(console.error);
         }
     }

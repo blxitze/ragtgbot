@@ -1,3 +1,8 @@
+// Load .env files before anything else — standalone Node process won't have
+// Next.js's automatic env loading.
+import { loadEnvConfig } from "@next/env";
+loadEnvConfig(process.cwd());
+
 import { claimNextPendingJob } from "./lib/db/jobs";
 import { processJob } from "./lib/pipeline/processJob";
 

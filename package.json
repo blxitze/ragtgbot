@@ -9,7 +9,9 @@
         "lint": "next lint",
         "test": "vitest",
         "test:run": "vitest run",
-        "worker": "tsx src/worker.ts"
+        "worker": "tsx src/worker.ts",
+        "webhook:set": "tsx scripts/telegramWebhook.ts",
+        "webhook:info": "tsx scripts/telegramWebhook.ts --info"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.98.0",

@@ -1,11 +1,13 @@
 import OpenAI from 'openai';
 
-// Ensure this only runs on the server
-import 'server-only';
-
-// Initialize the OpenAI client.
-// It automatically picks up OPENAI_API_KEY from the environment.
-const openai = new OpenAI();
+// Lazily initialized — standalone scripts need loadEnvConfig() before first use.
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+    if (!_openai) {
+        _openai = new OpenAI();
+    }
+    return _openai;
+}
 
 export async function callOpenAI(
     systemPrompt: string,
@@ -15,7 +17,7 @@ export async function callOpenAI(
     let attempt = 0;
     while (attempt <= maxRetries) {
         try {
-            const response = await openai.chat.completions.create({
+            const response = await getOpenAI().chat.completions.create({
                 model: 'gpt-4o-mini', // or gpt-4-turbo, etc., depending on needs
                 messages: [
                     { role: 'system', content: systemPrompt },

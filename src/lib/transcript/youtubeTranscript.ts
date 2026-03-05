@@ -2,10 +2,8 @@
  * src/lib/transcript/youtubeTranscript.ts
  *
  * Fetches and normalises YouTube video transcripts.
- * Enforced at build time: will error if imported from a client component.
+ * Safe for both Next.js server code and standalone Node scripts.
  */
-
-import "server-only";
 
 import { YoutubeTranscript, YoutubeTranscriptError } from "youtube-transcript";
 import type { TranscriptResponse } from "youtube-transcript";
